@@ -1,0 +1,565 @@
+---
+title: "Financial Time-Series Analysis, Risk Management and High-Frequency"
+author: "Fotso Tenku"
+date: "8 7 2020"
+output: html_document
+---
+
+## 1-Introduction to Time-Series Analysis
+
+## Question 1.1)
+
+```{r}
+set.seed(6822651)
+
+CBK=read.csv("CBK.DE.csv")
+
+# Example of the stationary times series (Plot of the Times Series of Commerzbank)
+n=dim(CBK)[1]
+time1= seq(2015, 2020+5/12, length.out = dim(CBK)[1])
+plot(time1, CBK$Close, type= "l", ylab = "Closing Price", xlab = "Year", main = "Closing Price of Commerzbank 2015-2020")
+```
+
+## Example of the sationary times series (Plot of Return of the Commerzbank)
+
+```{r}
+close_CBK  = CBK$Close
+return_CBK= diff(log(close_CBK))
+time2<-time1[2:n]
+plot(time2,return_CBK,type="l",xlab="Year",ylab = "Return CBK")
+title("The Return Series of Commerzbank")
+```
+
+## Fit and Similation of a AR(2) with 400 observation of commerzbank'data
+
+```{r}
+set.seed(6822651)
+n1=400
+AR=arima(return_CBK, order =c(2, 0, 0))
+AR
+```
+
+## Simulation of the fitted AR(2)-model
+
+```{r}
+AR_s=arima.sim(n1, model=list(ar=c(0.0262, 0.0073))) # This model is stationary
+
+#Plot the fitted AR(2)-Model: AR(2): X(t)= 0.0262X(t-1) + 0.0073X(t-2) + err(t)
+plot(AR_s, type="l", xlab="time", ylab="values", main = "Stationary AR(2) ")
+```
+
+## Example of Simation of non sationary AR(2)-process 
+
+```{r}
+AR_n=arima.sim(n1, model=list(ar=c(0.91, -0.34))) #non-stationary AR(2)-Process:X(t)= -0.91X(t-1) + 0.34 X(t-2) + err(t)
+
+AR_s=arima.sim(n1, model=list(ar=c(0.0262, 0.0073)))
+
+AR_n= 1:n1*0
+AR_n
+AR_n[1:2]= AR_s[1:2]
+AR_n
+for(t in 3:n1)
+{
+  AR_n[t]= 0.0262*AR_n[t-1] + 0.0073*AR_n[t-2] + rnorm(1)
+}
+```
+
+## Plot Stionary and non Stationary AR(2)-Process
+
+```{r}
+plot(AR_n, type="l", xlab="time", ylab="values", main = "Stationary and non Stationary AR(2)")
+lines(AR_s, col="red")
+legend(x=40, y=-0.5, legend = c("nonstationary", "stationary"), col=c("black", "red"),lty = 1)
+```
+
+## Question 1.2-b)
+
+```{r}
+beer=read.csv("ausbeer.csv")
+
+# State the model
+n2=dim(beer)[1]
+time.beer= seq(1956, 2010+3/12, length.out = n2)
+plot(time.beer, beer$value, type= "l", ylab = "value", xlab = "time", main = "Quarterly Australian Beer production")
+
+Return.beer<- diff(log(beer$value))
+plot(time.beer[2:n2],Return.beer, type="l",xlab="time",ylab = "value", main = "Return beer Production")
+```
+
+## Find the best Model using AIC or BIC
+
+```{r}
+BIC = AIC =matrix(0, nrow = 3, ncol = 3)
+for (p in 0:2)
+{
+  for (q in 0:2) 
+    {
+    model =arima(Return.beer, order =c(p, 0, q))
+    AIC[p+1, q+1] = model$aic
+    BIC[p+1, q+1] = -2*model$loglik+ log(n)*(p+q)
+  }
+  
+}
+
+AIC
+min(AIC)
+which(AIC==min(AIC))
+
+best_model.AIC=arima(Return.beer, order = c(2, 0, 2))
+
+best_model.AIC
+
+#best_model.BIC=arima(ARMA, order = c(2, 0, 2))
+```
+
+## Check for invertibility and stationary of the model.
+
+```{r}
+ARMA=arima.sim(n=n2, model= list(ar=c(-0.0267, -0.8974), ma=c(-1.0551, 0.6951)))
+plot(ARMA, type="l", xlab="time", ylab="value", main="ARMA(2,0,2)")
+```
+
+## 2-Financial Time-Series
+
+```{r}
+library(fGarch)
+
+AAPL = read.csv("AAPL.csv")
+
+n = dim(AAPL)[1]
+R = diff(log(AAPL$Close))
+
+# Fit the simple GARCH model
+garchFit(~garch(1, 1), R, trace = FALSE)@fit$ics[2] # best model
+garchFit(~garch(1, 2), R, trace = FALSE)@fit$ics[2]
+garchFit(~garch(2, 1), R, trace = FALSE)@fit$ics[2]
+garchFit(~garch(2, 2), R, trace = FALSE)@fit$ics[2]
+
+GARCH = garchFit(~garch(1, 1), R, trace = FALSE) 
+GARCH@fit$coef
+
+# Fit the APPARCH model
+garchFit(~aparch(1, 1), R, trace = FALSE)@fit$ics[2]# best model
+garchFit(~aparch(1, 2), R, trace = FALSE)@fit$ics[2]
+garchFit(~aparch(2, 1), R, trace = FALSE)@fit$ics[2]
+garchFit(~aparch(2, 2), R, trace = FALSE)@fit$ics[2]
+
+APARCH = garchFit(~aparch(1, 1), R, trace = FALSE)
+APARCH@fit$coef
+```
+
+## Plot of the volatility of the GARCH(1,1)
+
+```{r}
+time = seq(2018, 2020, length.out = n)
+Year = time[2:n]
+plot(Year, GARCH@sigma.t, type = "l", ylab = "Volatility", main = "GARCH Model")
+```
+
+## plot of the GARCH by the APPARCH(1,1) extension
+
+```{r}
+plot(Year, GARCH@sigma.t, type = "l", ylab = "volatility",)
+lines(Year, APARCH@sigma.t, col = "red")
+title("Estimated volatility by APPARCH extension (AAPL)")
+legend(y = 0.09, x = 2018.0, legend = c("GARCH", "APPARCH"), col = c("black", "red"), lty = 1)
+```
+
+```{r}
+# calculate the VaR and the ES alpha = 0.025
+# estimate GARCH(1,1)
+GARCH = garchFit(~garch(1,1), R, trace = FALSE)
+sigma_n = GARCH@sigma.t
+
+#define the sequences. 
+Year = seq(2018, 2020, length.out = n)
+time = Year[2:n]
+
+# calculate VaR and ES
+VaR_n975 = qnorm(0.975) * sigma_n
+ES_n975 = dnorm(qnorm(0.975))/(1 - 0.975) * sigma_n
+```
+
+## 3- Risk Management
+ 
+```{r}
+# find the time_series
+
+set.seed(6810782)
+DAI <- read.csv("DAI.DE.csv")
+SAP<- read.csv("SAP.DE.csv")
+DPW <- read.csv("DPW.DE.csv")
+DTE <- read.csv("DTE.DE.csv")
+
+#Display Stock price
+n<-dim(DAI)[1]
+
+time = seq(2015 + 4/12, 2018 + 4/12 , length.out = n)
+par(mfrow=c(2,2))
+
+plot(time,DAI$Close,type="l",xlab="Year",ylab="Price",main="The Daimler Index from 2015 to 2018")
+
+plot(time,SAP$Close,type="l",xlab="Year",ylab="Price",main="The SAP Index from 2015 to 2018")
+
+plot(time,DPW$Close,type="l",xlab="Year",ylab="Price",main="The DPW Index from 2015 to 2018")
+
+plot(time,DTE$Close,type="l",xlab="Year",ylab="Price",main="The DTE Index from 2005 to 2018")
+```
+
+## Compute Return
+
+```{r}
+Return_DAI<-diff(log(DAI$Close))
+Return_SAP<-diff(log(SAP$Close))
+Return_DPW<-diff(log(DPW$Close))
+Return_DTE<-diff(log(DTE$Close))
+
+# Display Return
+
+time2=time[2:n]
+par(mfrow=c(2,2))
+plot(time2,Return_DAI,type="l",xlab="Year",ylab = "Return")
+title("The Return Series of DAI")
+
+plot(time2,Return_SAP,type="l",xlab="Year",ylab = "Return")
+title("The Return Series of SAP")
+
+plot(time2,Return_DPW,type="l",xlab="Year",ylab = "Return")
+title("The Return Series of DPW")
+
+plot(time2,Return_DTE,type="l",xlab="Year",ylab = "Return")
+title("The Return Series of DTE")
+```
+
+## Fit 4 GARCH(p,q) models for p, q = 1, 2
+
+```{r}
+library(fGarch)
+
+# DAI
+garchFit(~garch(1,1), Return_DAI, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~garch(1,2), Return_DAI, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,1), Return_DAI, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,2), Return_DAI, trace=FALSE)@fit$ics[2]
+
+
+
+# the best Model IS GARCH(1,1)
+
+GARCH_DAI<- garchFit(~garch(1,1), Return_DAI, trace=FALSE)
+GARCH_DAI@fit$coef
+
+#SAP
+garchFit(~garch(1,1), Return_SAP, trace=FALSE)@fit$ics[2]# smallest BIC
+garchFit(~garch(1,2), Return_SAP, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,1), Return_SAP, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,2), Return_SAP, trace=FALSE)@fit$ics[2]
+
+
+# Best Model IS GARCH(1,1)
+
+GARCH_SAP <- garchFit(~garch(1,1), Return_SAP, trace=FALSE)
+GARCH_SAP@fit$coef
+
+#DPW
+garchFit(~garch(1,1), Return_DPW, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~garch(1,2), Return_DPW, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,1), Return_DPW, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,2), Return_DPW, trace=FALSE)@fit$ics[2]
+
+
+# the best Model IS GARCH(1,1)
+
+GARCH_DPW<- garchFit(~garch(1,1), Return_DPW, trace=FALSE)
+GARCH_DPW@fit$coef
+
+#DTE
+garchFit(~garch(1,1), Return_DTE, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~garch(1,2), Return_DTE, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,1), Return_DTE, trace=FALSE)@fit$ics[2]
+garchFit(~garch(2,2), Return_DTE, trace=FALSE)@fit$ics[2]
+
+
+
+# the best Model IS GARCH(1,1)
+
+GARCH_DTE<- garchFit(~garch(1,1), Return_DTE, trace=FALSE)
+GARCH_DTE@fit$coef
+```
+
+## APARCH
+
+```{r}
+# DAI
+garchFit(~aparch(1,1), Return_DAI, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~aparch(1,2), Return_DAI, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,1), Return_DAI, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,2), Return_DAI, trace=FALSE)@fit$ics[2]
+
+#the best Model IS APARCH(1,1)
+
+APARCH_DAI<- garchFit(~aparch(1,1), Return_DAI, trace=FALSE)
+APARCH_DAI@fit$coef
+
+#SAP
+garchFit(~aparch(1,1), Return_SAP, trace=FALSE)@fit$ics[2]# smallest BIC
+garchFit(~aparch(1,2), Return_SAP, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,1), Return_SAP, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,2), Return_SAP, trace=FALSE)@fit$ics[2]
+
+#the best Model IS APARCH(1,1)
+
+APARCH_SAP<- garchFit(~aparch(1,1), Return_SAP, trace=FALSE)
+APARCH_SAP@fit$coef
+
+#DPW
+garchFit(~aparch(1,1), Return_DPW, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~aparch(1,2), Return_DPW, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,1), Return_DPW, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,2), Return_DPW, trace=FALSE)@fit$ics[2]
+
+# the best Model IS APARCH(1,1)
+
+APARCH_DPW<- garchFit(~aparch(1,1), Return_DPW, trace=FALSE)
+APARCH_DPW@fit$coef
+
+#DTE
+garchFit(~aparch(1,1), Return_DTE, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(1,2), Return_DTE, trace=FALSE)@fit$ics[2] # smallest BIC
+garchFit(~aparch(2,1), Return_DTE, trace=FALSE)@fit$ics[2]
+garchFit(~aparch(2,2), Return_DTE, trace=FALSE)@fit$ics[2]
+
+# the best Model IS APARCH(1,2)
+
+APARCH_DTE<- garchFit(~aparch(1,2), Return_DTE, trace=FALSE)
+APARCH_DTE@fit$coef
+
+
+#Calculate the 0.95 VaR and ES for both models and all companies
+
+#DAI
+
+#GARCH
+
+sigma_GARCH_DAI<-GARCH_DAI@sigma.t
+VaR_GARCH_DAI95 = qnorm(0.95) * sigma_GARCH_DAI
+ES_GARCH_DAI95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_GARCH_DAI
+```
+
+## APARCH
+
+```{r}
+sigma_APARCH_DAI<-APARCH_DAI@sigma.t
+VaR_APARCH_DAI95 = qnorm(0.95) * sigma_APARCH_DAI
+ES_APARCH_DAI95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_APARCH_DAI
+
+#plot
+
+par(mfrow = c(2, 1), cex = 0.75, xpd = NA)
+
+plot(time2,Return_DAI,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (GARCH) of DAI")
+lines(time2, VaR_GARCH_DAI95, col = 2)
+lines(time2, ES_GARCH_DAI95, col = 4)
+
+plot(time2,Return_DAI,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (APARCH) of DAI")
+lines(time2, VaR_APARCH_DAI95, col = 2)
+lines(time2, ES_APARCH_DAI95, col = 4)
+
+legend(y = -0.14, x = 2017, legend = c("Return", "VaR", "ES"),
+       col = c(1, 2, 4), lwd = 1, horiz = TRUE)
+```
+
+```{r}
+#SAP
+
+#GARH
+
+sigma_GARCH_SAP<-GARCH_SAP@sigma.t
+VaR_GARCH_SAP95 = qnorm(0.95) * sigma_GARCH_SAP
+ES_GARCH_SAP95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_GARCH_SAP
+
+#APARCH
+
+sigma_APARCH_SAP<-APARCH_SAP@sigma.t
+VaR_APARCH_SAP95 = qnorm(0.95) * sigma_APARCH_SAP
+ES_APARCH_SAP95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_APARCH_SAP
+
+# Plot
+
+par(mfrow = c(2, 1), cex = 0.75, xpd = NA)
+
+plot(time2,Return_SAP,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (GARCH) of SAP")
+lines(time2, VaR_GARCH_SAP95, col = 2)
+lines(time2, ES_GARCH_SAP95, col = 4)
+
+plot(time2,Return_SAP,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (APARCH) of SAP")
+lines(time2, VaR_APARCH_SAP95, col = 2)
+lines(time2, ES_APARCH_SAP95, col = 4)
+
+legend(y = -0.11, x = 2017, legend = c("Return", "VaR", "ES"),
+       col = c(1, 2, 4), lwd = 1, horiz = TRUE)
+```
+
+```{r}
+#DPW
+
+#GARCH
+
+sigma_GARCH_DPW<-GARCH_DPW@sigma.t
+VaR_GARCH_DPW95 = qnorm(0.95) * sigma_GARCH_DPW
+ES_GARCH_DPW95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_GARCH_DPW
+
+#APARCH
+
+sigma_APARCH_DPW<-APARCH_DPW@sigma.t
+VaR_APARCH_DPW95 = qnorm(0.95) * sigma_APARCH_DPW
+ES_APARCH_DPW95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_APARCH_DPW
+
+#Plot
+
+par(mfrow = c(2, 1), cex = 0.75, xpd = NA)
+
+plot(time2,Return_DPW,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (GARCH) of DPW")
+lines(time2, VaR_GARCH_DPW95, col = 2)
+lines(time2, ES_GARCH_DPW95, col = 4)
+
+plot(time2,Return_DPW,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (APARCH) of DPW")
+lines(time2, VaR_APARCH_DPW95, col = 2)
+lines(time2, ES_APARCH_DPW95, col = 4)
+
+legend(y = -0.12, x = 2017, legend = c("Return", "VaR", "ES"),
+       col = c(1, 2, 4), lwd = 1, horiz = TRUE)
+```
+
+```{r}
+# DTE
+#GARCH
+
+sigma_GARCH_DTE<-GARCH_DTE@sigma.t
+VaR_GARCH_DTE95 = qnorm(0.95) * sigma_GARCH_DTE
+ES_GARCH_DTE95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_GARCH_DTE
+
+
+#APARCH
+
+sigma_APARCH_DTE<-APARCH_DTE@sigma.t
+VaR_APARCH_DTE95 = qnorm(0.95) * sigma_APARCH_DTE
+ES_APARCH_DTE95 = dnorm(qnorm(0.95))/(1 - 0.95) * sigma_APARCH_DTE
+
+#Plot
+
+par(mfrow = c(2, 1), cex = 0.75, xpd = NA)
+
+plot(time2,Return_DTE,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (GARCH) of DTE")
+lines(time2, VaR_GARCH_DTE95, col = 2)
+lines(time2, ES_GARCH_DTE95, col = 4)
+
+plot(time2,Return_DTE,type="l",xlab="Year",ylab = "Return")
+title("The Return Series and 95% VAR, ES (APARCH) of DTE")
+lines(time2, VaR_APARCH_DTE95, col = 2)
+lines(time2, ES_APARCH_DTE95, col = 4)
+
+legend(y = -0.11, x = 2017, legend = c("Return", "VaR", "ES"),
+       col = c(1, 2, 4), lwd = 1, horiz = TRUE)
+```
+
+```{r}
+# GARCH and APARCH of DAIMLER
+# DAI
+#GARCH
+
+garchFit(~garch(1,1), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~garch(1,2), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~garch(2,1), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~garch(2,2), Return_DAI, trace=FALSE)@fit$coef
+
+# APARCH
+
+garchFit(~aparch(1,1), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~aparch(1,2), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~aparch(2,1), Return_DAI, trace=FALSE)@fit$coef
+garchFit(~aparch(2,2), Return_DAI, trace=FALSE)@fit$coef
+```
+
+## 4 High-Frequency Financial 
+
+```{r}
+set.seed(6810782)
+
+HF_BMW<- read.csv("HF-BMW.csv",header = FALSE)
+
+Data1<- HF_BMW[82,] 
+Day_1<-unlist(Data1,recursive = TRUE,use.names=FALSE)
+
+Data2<- HF_BMW[83,]
+Day_2<- unlist(Data2,recursive = TRUE,use.names = FALSE)
+
+Data3<- HF_BMW[84,]
+Day_3<- unlist(Data3,recursive = TRUE,use.names = FALSE)
+
+#Plot all three time-series
+
+
+n <- length(Day_1)
+
+X<-format(seq(as.POSIXct( "2020-08-22 09:00:00", tz="GMT"), length.out=n,  by='1 min'), '%H:%M')
+
+par(mfrow = c(3, 1))
+
+plot(Day_1,type="l",xaxt="n",xlab="time",ylab="Price",main="the BMW index of the day 1")
+axis(1,at=1:511,labels =X[1:511])
+
+plot(Day_2,type="l",xaxt="n",xlab="time",ylab="Price",main="the BMW index of the day 2")
+axis(1,at=1:511,labels = X[1:511])
+
+plot(Day_3,type="l",xaxt="n",xlab="time",ylab="Price",main="the BMW index of the day 3")
+axis(1,at=1:511,labels = X[1:511])
+```
+
+```{r}
+# Calculate the Return
+
+Return_Day_1<- diff(log(Day_1))
+Return_Day_2<- diff(log(Day_2))
+Return_Day_3<- diff(log(Day_3))
+
+# Plot the Return
+
+par(mfrow=c(3,1))
+plot(Return_Day_1,type="l",xaxt="n",xlab="time",ylab = "Return",main="The Return Series of BMW of the day 1")
+axis(1,at=2:511,labels = X[2:511])
+
+plot(Return_Day_2,type="l",xaxt="n",xlab="time",ylab = "Return",main="The Return Series of BMW of the day 2")
+axis(1,at=2:511,labels = X[2:511])
+
+plot(Return_Day_3,type="l",xaxt="n",xlab="time",ylab = "Return",main="The Return Series of BMW of the day 3")
+axis(1,at=2:511,labels = X[2:511])
+```
+
+```{r}
+# Calculate Volatility
+library(fGarch)
+
+Return_Day_1.GARCH11=garchFit(~garch(1,1), Return_Day_1, trace=FALSE)
+volatility_Day_1<- Return_Day_1.GARCH11@sigma.t
+
+
+Return_Day_2.GARCH11=garchFit(~garch(1,1), Return_Day_2, trace=FALSE)
+volatility_Day_2 <- Return_Day_2.GARCH11@sigma.t
+
+Return_Day_3.GARCH11=garchFit(~garch(1,1), Return_Day_3, trace=FALSE)
+volatility_Day_3 <- Return_Day_3.GARCH11@sigma.t
+
+data<-data.frame(volatility_Day_1,volatility_Day_2,volatility_Day_3)
+head(data)
+
+```
+
